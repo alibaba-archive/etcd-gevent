@@ -6,8 +6,6 @@ import unittest
 import multiprocessing
 import tempfile
 
-import urllib3
-
 import etcd
 from . import helpers
 from . import test_simple

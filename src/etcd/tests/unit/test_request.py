@@ -1,5 +1,4 @@
 import socket
-import urllib3
 
 import etcd
 from etcd.tests.unit import TestClientApiBase
