@@ -1,11 +1,12 @@
 """
-.. module:: python-etcd
+.. module:: gevent-etcd
    :synopsis: A python etcd client.
 
 .. moduleauthor:: Jose Plana <jplana@gmail.com>
 
 
 """
+import sys
 import logging
 try:
     # Python 3
@@ -14,22 +15,36 @@ except ImportError:
     # Python 2
     from httplib import HTTPException
 import socket
-import urllib3
-from urllib3.exceptions import HTTPError
-from urllib3.exceptions import ReadTimeoutError
 import json
 import ssl
 import dns.resolver
+import geventhttpclient
 from functools import wraps
+from collections import OrderedDict
 import etcd
 
 try:
     from urlparse import urlparse
+    from urllib import urlencode
 except ImportError:
-    from urllib.parse import urlparse
+    from urllib.parse import urlparse, urlencode
 
 
 _log = logging.getLogger(__name__)
+
+
+if sys.version_info[0] < 3:
+    def b(s):
+        if isinstance(s, unicode):
+            return s.encode('utf-8')
+        else:
+            return s
+else:
+    def b(s):
+        if isinstance(s, str):
+            return s.encode('utf-8')
+        else:
+            return s
 
 
 class Client(object):
@@ -45,8 +60,6 @@ class Client(object):
     _comparison_conditions = set(('prevValue', 'prevIndex', 'prevExist', 'refresh'))
     _read_options = set(('recursive', 'wait', 'waitIndex', 'sorted', 'quorum'))
     _del_conditions = set(('prevValue', 'prevIndex'))
-
-    http = None
 
     def __init__(
             self,
@@ -149,27 +162,23 @@ class Client(object):
         self._allow_reconnect = allow_reconnect
         self._lock_prefix = lock_prefix
 
+        self._per_host_pool_size = per_host_pool_size
+
         # SSL Client certificate support
 
-        kw = {
-          'maxsize': per_host_pool_size
-        }
-
-        if self._read_timeout > 0:
-            kw['timeout'] = self._read_timeout
-
+        self._ssl_options = dict()
         if cert:
             if isinstance(cert, tuple):
                 # Key and cert are separate
-                kw['cert_file'] = cert[0]
-                kw['key_file'] = cert[1]
+                self._ssl_options['cert_file'] = cert[0]
+                self._ssl_options['key_file'] = cert[1]
             else:
                 # combined certificate
-                kw['cert_file'] = cert
+                self._ssl_options['cert_file'] = cert
 
         if ca_cert:
-            kw['ca_certs'] = ca_cert
-            kw['cert_reqs'] = ssl.CERT_REQUIRED
+            self._ssl_options['ca_certs'] = ca_cert
+            self._ssl_options['cert_reqs'] = ssl.CERT_REQUIRED
 
         self.username = None
         self.password = None
@@ -181,7 +190,7 @@ class Client(object):
         elif password:
             _log.warning('Password provided without username, both are required for authentication')
 
-        self.http = urllib3.PoolManager(num_pools=10, **kw)
+        self.http_clients = OrderedDict()
 
         _log.debug("New etcd client created for %s", self.base_uri)
 
@@ -209,12 +218,24 @@ class Client(object):
         # Versions set to None. They will be set upon first usage.
         self._version = self._cluster_version = None
 
+    @property
+    def http(self):
+        if self._base_uri not in self.http_clients:
+            ssl_opts = dict()
+            if self._ssl_options:
+                ssl_opts['ssl_options'] = self._ssl_options
+            self.http_clients[self._base_uri] = geventhttpclient.HTTPClient.from_url(
+                self._base_uri, network_timeout=self._read_timeout,
+                concurrency=self._per_host_pool_size, **ssl_opts)
+        self.http_clients.move_to_end(self._base_uri)
+        return self.http_clients[self._base_uri]
+
     def _set_version_info(self):
         """
         Sets the version information provided by the server.
         """
         # Set the version
-        data = self.api_execute('/version', self._MGET).data
+        data = self.api_execute('/version', self._MGET).read()
         version_info = json.loads(data.decode('utf-8'))
         self._version = version_info['etcdserver']
         self._cluster_version = version_info['etcdcluster']
@@ -235,7 +256,7 @@ class Client(object):
         """Clean up open connections"""
         if self.http is not None:
             try:
-                self.http.clear()
+                self.http.close()
             except ReferenceError:
                 # this may hit an already-cleared weakref
                 pass
@@ -288,21 +309,20 @@ class Client(object):
         """
         # We can't use api_execute here, or it causes a logical loop
         try:
-            uri = self._base_uri + self.version_prefix + '/machines'
-            response = self.http.request(
+            response = self.request(
                 self._MGET,
-                uri,
+                self.version_prefix + '/machines',
                 headers=self._get_headers(),
                 timeout=self.read_timeout,
-                redirect=self.allow_redirect)
+            )
 
             machines = [
                 node.strip() for node in
-                self._handle_server_response(response).data.decode('utf-8').split(',')
+                self._handle_server_response(response).read().decode('utf-8').split(',')
             ]
             _log.debug("Retrieved list of machines: %s", machines)
             return machines
-        except (HTTPError, HTTPException, socket.error) as e:
+        except (HTTPException, socket.error) as e:
             # We can't get the list of machines, if one server is in the
             # machines cache, try on it
             _log.error("Failed to get list of machines from %s%s: %r",
@@ -328,7 +348,7 @@ class Client(object):
         self._members = {}
         try:
             data = self.api_execute(self.version_prefix + '/members',
-                                    self._MGET).data.decode('utf-8')
+                                    self._MGET).read().decode('utf-8')
             res = json.loads(data)
             for member in res['members']:
                 self._members[member['id']] = member
@@ -349,7 +369,7 @@ class Client(object):
 
             leader = json.loads(
                 self.api_execute(self.version_prefix + '/stats/self',
-                                 self._MGET).data.decode('utf-8'))
+                                 self._MGET).read().decode('utf-8'))
             return self.members[leader['leaderInfo']['leader']]
         except Exception as e:
             raise etcd.EtcdException("Cannot get leader data: %s" % e)
@@ -381,7 +401,7 @@ class Client(object):
     def _stats(self, what='self'):
         """ Internal method to access the stats endpoints"""
         data = self.api_execute(self.version_prefix
-                                + '/stats/' + what, self._MGET).data.decode('utf-8')
+                                + '/stats/' + what, self._MGET).read().decode('utf-8')
         try:
             return json.loads(data)
         except (TypeError,ValueError):
@@ -569,7 +589,7 @@ class Client(object):
         Raises:
             KeyValue:  If the key doesn't exists.
 
-            urllib3.exceptions.TimeoutError: If timeout is reached.
+            socket.timeout: If timeout is reached.
 
         >>> print client.get('/key').value
         'value'
@@ -800,7 +820,7 @@ class Client(object):
 
     def _result_from_response(self, response):
         """ Creates an EtcdResult from json dictionary """
-        raw_response = response.data
+        raw_response = response.read()
         try:
             res = json.loads(raw_response.decode('utf-8'))
         except (TypeError, ValueError, UnicodeError) as e:
@@ -808,7 +828,7 @@ class Client(object):
                 'Server response was not valid JSON: %r' % e)
         try:
             r = etcd.EtcdResult(**res)
-            if response.status == 201:
+            if response.status_code == 201:
                 r.newKey = True
             r.parse_headers(response)
             return r
@@ -853,16 +873,10 @@ class Client(object):
                     # preload_content=False above so we can read the headers
                     # before we wait for the content of a watch.
                     self._check_cluster_id(response, path)
-                    # Now force the data to be preloaded in order to trigger any
-                    # IO-related errors in this method rather than when we try to
-                    # access it later.
-                    _ = response.data
-                    # urllib3 doesn't wrap all httplib exceptions and earlier versions
-                    # don't wrap socket errors either.
-                except (HTTPError, HTTPException, socket.error) as e:
+                except (HTTPException, socket.timeout, socket.error) as e:
                     if (isinstance(params, dict) and
                         params.get("wait") == "true" and
-                        isinstance(e, ReadTimeoutError)):
+                        isinstance(e, socket.timeout)):
                         _log.debug("Watch timed out.")
                         raise etcd.EtcdWatchTimedOut(
                             "Watch timed out: %r" % e,
@@ -903,51 +917,67 @@ class Client(object):
             return self._handle_server_response(response)
         return wrapper
 
+    def request(self, method, path, headers=None, body=None, timeout=None):
+        while True:
+            resp = self.http.request(
+                method,
+                path,
+                headers=headers,
+                body=body,
+            )
+            if not self.allow_redirect or resp.status_code not in (301, 302):
+                return resp
+            else:
+                resp.read()
+                path = resp.get('location')
+
     @_wrap_request
     def api_execute(self, path, method, params=None, timeout=None):
         """ Executes the query. """
-        url = self._base_uri + path
-
         if (method == self._MGET) or (method == self._MDELETE):
-            return self.http.request(
+            if params:
+                query_str = '?' + urlencode(params)
+            else:
+                query_str = ''
+            return self.request(
                 method,
-                url,
-                timeout=timeout,
-                fields=params,
-                redirect=self.allow_redirect,
+                path + query_str,
                 headers=self._get_headers(),
-                preload_content=False)
-
+                timeout=timeout,
+            )
         elif (method == self._MPUT) or (method == self._MPOST):
-            return self.http.request_encode_body(
+            req_path = path
+            encoded = urlencode(params) if params else None
+            headers = self._get_headers()
+            headers['content-type'] = 'application/x-www-form-urlencoded'
+            headers['content-length'] = len(encoded) if encoded else 0
+            return self.request(
                 method,
-                url,
-                fields=params,
+                req_path,
+                body=encoded,
+                headers=headers,
                 timeout=timeout,
-                encode_multipart=False,
-                redirect=self.allow_redirect,
-                headers=self._get_headers(),
-                preload_content=False)
+            )
         else:
-                    raise etcd.EtcdException(
-                        'HTTP method {} not supported'.format(method))
+            raise etcd.EtcdException(
+                'HTTP method {} not supported'.format(method))
 
     @_wrap_request
     def api_execute_json(self, path, method, params=None, timeout=None):
-        url = self._base_uri + path
         json_payload = json.dumps(params)
         headers = self._get_headers()
         headers['Content-Type'] = 'application/json'
-        return self.http.urlopen(method,
-                                 url,
-                                 body=json_payload,
-                                 timeout=timeout,
-                                 redirect=self.allow_redirect,
-                                 headers=headers,
-                                 preload_content=False)
+
+        return self.http.request(
+            method,
+            path,
+            body=json_payload,
+            headers=headers,
+            timeout=timeout,
+        )
 
     def _check_cluster_id(self, response, path):
-        cluster_id = response.getheader("x-etcd-cluster-id")
+        cluster_id = response.get("x-etcd-cluster-id")
         if not cluster_id:
             if self.version_prefix in path:
                 _log.warning("etcd response did not contain a cluster ID")
@@ -960,31 +990,59 @@ class Client(object):
         if id_changed:
             # Defensive: clear the pool so that we connect afresh next
             # time.
-            self.http.clear()
+            self.http.close()
             raise etcd.EtcdClusterIdChanged(
                 'The UUID of the cluster changed from {} to '
                 '{}.'.format(old_expected_cluster_id, cluster_id))
 
     def _handle_server_response(self, response):
         """ Handles the server response """
-        if response.status in [200, 201]:
+        if response.status_code in [200, 201]:
             return response
 
         else:
-            resp = response.data.decode('utf-8')
+            resp = response.read().decode('utf-8')
 
             # throw the appropriate exception
             try:
                 r = json.loads(resp)
-                r['status'] = response.status
+                r['status'] = response.status_code
             except (TypeError, ValueError):
                 # Bad JSON, make a response locally.
                 r = {"message": "Bad response",
                      "cause": str(resp)}
             etcd.EtcdError.handle(r)
 
+    @staticmethod
+    def _make_headers(keep_alive=None, accept_encoding=None, user_agent=None,
+                      basic_auth=None, proxy_basic_auth=None, disable_cache=None):
+        from base64 import b64encode
+
+        headers = {}
+        if accept_encoding:
+            if isinstance(accept_encoding, list):
+                accept_encoding = ','.join(accept_encoding)
+            else:
+                accept_encoding = accept_encoding or 'gzip,deflate'
+            headers['accept-encoding'] = accept_encoding
+
+        if user_agent:
+            headers['user-agent'] = user_agent
+        if keep_alive:
+            headers['connection'] = 'keep-alive'
+        if basic_auth:
+            headers['authorization'] = 'Basic ' + \
+                                       b64encode(b(basic_auth)).decode('utf-8')
+        if proxy_basic_auth:
+            headers['proxy-authorization'] = 'Basic ' + \
+                                             b64encode(b(proxy_basic_auth)).decode('utf-8')
+        if disable_cache:
+            headers['cache-control'] = 'no-cache'
+
+        return headers
+
     def _get_headers(self):
         if self.username and self.password:
             credentials = ':'.join((self.username, self.password))
-            return urllib3.make_headers(basic_auth=credentials)
+            return self._make_headers(basic_auth=credentials)
         return {}

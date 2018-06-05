@@ -20,7 +20,7 @@ class TestEncryptedAccess(test_simple.EtcdIntegrationTest):
     @classmethod
     def setUpClass(cls):
         program = cls._get_exe()
-        cls.directory = tempfile.mkdtemp(prefix='python-etcd')
+        cls.directory = tempfile.mkdtemp(prefix='gevent-etcd')
 
         cls.ca_cert_path = os.path.join(cls.directory, 'ca.crt')
         ca_key_path = os.path.join(cls.directory, 'ca.key')
@@ -99,7 +99,7 @@ class TestClientAuthenticatedAccess(test_simple.EtcdIntegrationTest):
     @classmethod
     def setUpClass(cls):
         program = cls._get_exe()
-        cls.directory = tempfile.mkdtemp(prefix='python-etcd')
+        cls.directory = tempfile.mkdtemp(prefix='gevent-etcd')
 
         cls.ca_cert_path = os.path.join(cls.directory, 'ca.crt')
         ca_key_path = os.path.join(cls.directory, 'ca.key')

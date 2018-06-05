@@ -1,7 +1,6 @@
 import etcd
 import unittest
 import json
-import urllib3
 
 try:
     import mock

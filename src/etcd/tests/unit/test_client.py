@@ -127,7 +127,7 @@ class TestClient(TestClientApiBase):
         """Verify _set_version_info makes the proper call to the server"""
         data = {"etcdserver": "2.2.3", "etcdcluster": "2.3.0"}
         self._mock_api(200, data)
-        self.client.api_execute.return_value.getheader.return_value = None
+        self.client.api_execute.return_value.__getitem__.return_value = None
         # Create the client and make the call.
         self.client._set_version_info()
 
@@ -144,7 +144,7 @@ class TestClient(TestClientApiBase):
         """Ensure the version property is set on first access."""
         data = {"etcdserver": "2.2.3", "etcdcluster": "2.3.0"}
         self._mock_api(200, data)
-        self.client.api_execute.return_value.getheader.return_value = None
+        self.client.api_execute.return_value.__getitem__.return_value = None
 
         # Verify the version property is set
         self.assertEquals('2.2.3', self.client.version)
@@ -153,7 +153,7 @@ class TestClient(TestClientApiBase):
         """Ensure the cluster version property is set on first access."""
         data = {"etcdserver": "2.2.3", "etcdcluster": "2.3.0"}
         self._mock_api(200, data)
-        self.client.api_execute.return_value.getheader.return_value = None
+        self.client.api_execute.return_value.__getitem__.return_value = None
         # Verify the cluster_version property is set
         self.assertEquals('2.3.0', self.client.cluster_version)
 

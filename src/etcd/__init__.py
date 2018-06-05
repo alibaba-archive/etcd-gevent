@@ -59,9 +59,8 @@ class EtcdResult(object):
                 self.dir = True
 
     def parse_headers(self, response):
-        headers = response.getheaders()
-        self.etcd_index = int(headers.get('x-etcd-index', 1))
-        self.raft_index = int(headers.get('x-raft-index', 1))
+        self.etcd_index = int(response.get('x-etcd-index', 1))
+        self.raft_index = int(response.get('x-raft-index', 1))
 
     def get_subtree(self, leaves_only=False):
         """

@@ -56,7 +56,7 @@ class EtcdProcessHelper(object):
         log = logging.getLogger()
         directory = tempfile.mkdtemp(
             dir=self.base_directory,
-            prefix='python-etcd.%d-' % slot)
+            prefix='gevent-etcd.%d-' % slot)
 
         log.debug('Created directory %s' % directory)
         client = '%s127.0.0.1:%d' % (self.schema, self.port_range_start + slot)

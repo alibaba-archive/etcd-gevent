@@ -6,7 +6,8 @@ import unittest
 import multiprocessing
 import tempfile
 
-import urllib3
+import gevent
+import gipc
 
 import etcd
 from . import helpers
@@ -23,7 +24,7 @@ class EtcdIntegrationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         program = cls._get_exe()
-        cls.directory = tempfile.mkdtemp(prefix='python-etcd')
+        cls.directory = tempfile.mkdtemp(prefix='gevent-etcd')
         cls.processHelper = helpers.EtcdProcessHelper(
             cls.directory,
             proc_name=program,
@@ -135,7 +136,6 @@ class TestSimple(EtcdIntegrationTest):
         self.assertEquals(new_res.ttl, 120)
 
 
-
 class TestErrors(EtcdIntegrationTest):
 
     def test_is_not_a_file(self):
@@ -170,7 +170,7 @@ class TestClusterFunctions(EtcdIntegrationTest):
     @classmethod
     def setUpClass(cls):
         program = cls._get_exe()
-        cls.directory = tempfile.mkdtemp(prefix='python-etcd')
+        cls.directory = tempfile.mkdtemp(prefix='gevent-etcd')
 
         cls.processHelper = helpers.EtcdProcessHelper(
             cls.directory,
@@ -244,22 +244,26 @@ class TestWatch(EtcdIntegrationTest):
     def test_watch(self):
         """ INTEGRATION: Receive a watch event from other process """
 
-        set_result = self.client.set('/test-key', 'test-value')
+        g = gevent.spawn(self.client.set, '/test-key', 'test-value')
+        g.join()
 
         queue = multiprocessing.Queue()
 
         def change_value(key, newValue):
             c = etcd.Client(port=6001)
-            c.set(key, newValue)
+            g = gevent.spawn(c.set, key, newValue)
+            g.join()
 
         def watch_value(key, queue):
             c = etcd.Client(port=6001)
-            queue.put(c.watch(key).value)
+            g = gevent.spawn(c.watch, key)
+            g.join()
+            queue.put(g.value.value)
 
-        changer = multiprocessing.Process(
+        changer = gipc.start_process(
             target=change_value, args=('/test-key', 'new-test-value',))
 
-        watcher = multiprocessing.Process(
+        watcher = gipc.start_process(
             target=watch_value, args=('/test-key', queue))
 
         watcher.start()
@@ -294,10 +298,10 @@ class TestWatch(EtcdIntegrationTest):
             for i in range(0, 3):
                 queue.put(c.watch(key, index=index + i).value)
 
-        proc = multiprocessing.Process(
+        proc = gipc.start_process(
             target=change_value, args=('/test-key', 'test-value3',))
 
-        watcher = multiprocessing.Process(
+        watcher = gipc.start_process(
             target=watch_value, args=('/test-key', original_index, queue))
 
         watcher.start()
@@ -333,10 +337,10 @@ class TestWatch(EtcdIntegrationTest):
                 event = next(c.eternal_watch(key)).value
                 queue.put(event)
 
-        changer = multiprocessing.Process(
+        changer = gipc.start_process(
             target=change_value, args=('/test-key',))
 
-        watcher = multiprocessing.Process(
+        watcher = gipc.start_process(
             target=watch_value, args=('/test-key', queue))
 
         watcher.start()
@@ -372,10 +376,10 @@ class TestWatch(EtcdIntegrationTest):
             for i in range(0, 3):
                 queue.put(next(iterevents).value)
 
-        proc = multiprocessing.Process(
+        proc = gipc.start_process(
             target=change_value, args=('/test-key', 'test-value3',))
 
-        watcher = multiprocessing.Process(
+        watcher = gipc.start_process(
             target=watch_value, args=('/test-key', original_index, queue))
 
         watcher.start()

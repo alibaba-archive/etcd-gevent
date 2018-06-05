@@ -1,6 +1,6 @@
 import etcd
 import unittest
-import urllib3
+import geventhttpclient.response
 import json
 try:
     import mock
@@ -19,10 +19,10 @@ class TestClientApiBase(unittest.TestCase):
         else:
             data = d.encode('utf-8')
 
-        r = mock.create_autospec(urllib3.response.HTTPResponse)()
-        r.status = s
-        r.data = data
-        r.getheader.return_value = cluster_id or "abcd1234"
+        r = mock.create_autospec(geventhttpclient.response.HTTPSocketPoolResponse)(None, None)
+        r.status_code = s
+        r.read.return_value = data
+        r.get.side_effect = lambda x, default=None: "abcd1234" if x == "x-etcd-cluster-id" else default
         return r
 
     def _mock_api(self, status, d, cluster_id=None):

@@ -9,18 +9,19 @@ NEWS = open(os.path.join(here, 'NEWS.txt')).read()
 version = '0.4.5'
 
 install_requires = [
-    'urllib3>=1.7.1',
-    'dnspython>=1.13.0'
+    'dnspython>=1.13.0',
+    'geventhttpclient',
 ]
 
 test_requires = [
     'mock',
     'nose',
+    'gipc',
     'pyOpenSSL>=0.14'
 ]
 
 setup(
-    name='python-etcd',
+    name='gevent-etcd',
     version=version,
     description="A python client for etcd",
     long_description=README + '\n\n' + NEWS,
@@ -32,10 +33,10 @@ setup(
         "Programming Language :: Python :: 3",
         "Topic :: Database :: Front-Ends",
     ],
-    keywords='etcd raft distributed log api client',
-    author='Jose Plana',
-    author_email='jplana@gmail.com',
-    url='http://github.com/jplana/python-etcd',
+    keywords='async etcd raft distributed log api client',
+    author='Wenjun Si',
+    author_email='swj0066@gmail.com',
+    url='http://github.com/wjsi/gevent-etcd',
     license='MIT',
     packages=find_packages('src'),
     package_dir = {'': 'src'},

@@ -11,17 +11,23 @@ from etcd import EtcdException
 class FakeHTTPResponse(object):
 
     def __init__(self, status, data='', headers=None):
-        self.status = status
+        self.status_code = status
         self.data = data.encode('utf-8')
         self.headers = headers or {
             "x-etcd-cluster-id": "abdef12345",
         }
 
+    def read(self):
+        return self.data
+
     def getheaders(self):
         return self.headers
 
-    def getheader(self, header):
+    def __getitem__(self, header):
         return self.headers[header]
+
+    def get(self, header, default=None):
+        return self.headers.get(header, default)
 
 
 class TestClientRequest(unittest.TestCase):
@@ -295,7 +301,7 @@ class TestClientApiExecutor(unittest.TestCase):
         """ http put request """
         client = etcd.Client()
         response = FakeHTTPResponse(status=200, data='arbitrary json data')
-        client.http.request_encode_body = mock.Mock(return_value=response)
+        client.http.request = mock.Mock(return_value=response)
         result = client.api_execute('/v2/keys/testkey', client._MPUT)
         self.assertEquals('arbitrary json data'.encode('utf-8'), result.data)
 
@@ -305,7 +311,7 @@ class TestClientApiExecutor(unittest.TestCase):
         response = FakeHTTPResponse(
             status=400,
             data='{"message": "message", "cause": "cause", "errorCode": 101}')
-        client.http.request_encode_body = mock.Mock(return_value=response)
+        client.http.request = mock.Mock(return_value=response)
         payload = {'value': 'value', 'prevValue': 'oldValue', 'ttl': '60'}
         try:
             client.api_execute('/v2/keys/testkey', client._MPUT, payload)
@@ -319,7 +325,7 @@ class TestClientApiExecutor(unittest.TestCase):
         response = FakeHTTPResponse(
             status=400,
             data='{"message": "message", "cause": "cause", "errorCode": 102}')
-        client.http.request_encode_body = mock.Mock(return_value=response)
+        client.http.request = mock.Mock(return_value=response)
         payload = {'value': 'value', 'prevValue': 'oldValue', 'ttl': '60'}
         try:
             client.api_execute('/v2/keys/testkey', client._MPUT, payload)

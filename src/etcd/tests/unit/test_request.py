@@ -79,7 +79,7 @@ class TestClientApiInterface(TestClientApiBase):
 
     If a test should be run only in this class, please override the method there.
     """
-    @mock.patch('urllib3.request.RequestMethods.request')
+    @mock.patch('geventhttpclient.client.HTTPClient.request')
     def test_machines(self, mocker):
         """ Can request machines """
         data = ['http://127.0.0.1:4001',
@@ -414,9 +414,8 @@ class TestClientRequest(TestClientApiInterface):
 
     def _mock_api(self, status, d, cluster_id=None):
         resp = self._prepare_response(status, d)
-        resp.getheader.return_value = cluster_id or "abcdef1234"
-        self.client.http.request_encode_body = mock.MagicMock(
-            return_value=resp)
+        cluster_id = cluster_id or 'abcdef1234'
+        resp.get.side_effect = lambda x, default=None: cluster_id if x == "x-etcd-cluster-id" else default
         self.client.http.request = mock.MagicMock(return_value=resp)
 
     def _mock_error(self, error_code, msg, cause, method='PUT', fields=None,
@@ -425,10 +424,11 @@ class TestClientRequest(TestClientApiInterface):
             500,
             {'errorCode': error_code, 'message': msg, 'cause': cause}
         )
-        resp.getheader.return_value = cluster_id or "abcdef1234"
-        self.client.http.request_encode_body = mock.create_autospec(
-            self.client.http.request_encode_body, return_value=resp
-        )
+        cluster_id = cluster_id or 'abcdef1234'
+        resp.get.side_effect = lambda x, default=None: cluster_id if x == "x-etcd-cluster-id" else default
+        # self.client.http.request_encode_body = mock.create_autospec(
+        #     self.client.http.request_encode_body, return_value=resp
+        # )
         self.client.http.request = mock.create_autospec(
             self.client.http.request, return_value=resp
         )
@@ -449,9 +449,7 @@ class TestClientRequest(TestClientApiInterface):
         """ Exception will be raised if prevValue != value in test_set """
         self.client.http.request = mock.create_autospec(
             self.client.http.request,
-            side_effect=urllib3.exceptions.ReadTimeoutError(self.client.http,
-                                                            "foo",
-                                                            "Read timed out")
+            side_effect=socket.timeout()
         )
         self.assertRaises(
             etcd.EtcdWatchTimedOut,

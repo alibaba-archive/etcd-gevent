@@ -35,7 +35,7 @@ class EtcdAuthBase(object):
             return json.loads(response.data.decode('utf-8'))[key]
         else:
             return [obj[self.entity]
-                    for obj in json.loads(response.data.decode('utf-8'))[key]]
+                    for obj in json.loads(response.read().decode('utf-8'))[key]]
 
     def read(self):
         try:
@@ -53,7 +53,7 @@ class EtcdAuthBase(object):
             raise etcd.EtcdException(
                 "Could not fetch {} '{}'".format(self.entity, self.name))
 
-        self._from_net(response.data)
+        self._from_net(response.read())
 
     def write(self):
         try:
@@ -67,7 +67,7 @@ class EtcdAuthBase(object):
                                                         self.client._MPUT,
                                                         params=payload)
                 # This will fail if the response is an error
-                self._from_net(response.data)
+                self._from_net(response.read())
         except etcd.EtcdInsufficientPermissions as e:
             _log.error("Any action on the authorization requires the root role")
             raise
@@ -270,7 +270,7 @@ class Auth(object):
     @property
     def active(self):
         resp = self.client.api_execute(self.uri, self.client._MGET)
-        return json.loads(resp.data.decode('utf-8'))['enabled']
+        return json.loads(resp.read().decode('utf-8'))['enabled']
 
     @active.setter
     def active(self, value):
