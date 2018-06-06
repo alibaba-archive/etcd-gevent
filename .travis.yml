@@ -1,7 +1,7 @@
 language: python
 python:
   - "2.7"
-  - "3.5"
+  - "3.6"
 
 before_install:
   - ./download_etcd.sh 2.3.7
@@ -11,13 +11,16 @@ before_install:
 install:
   - pip install coveralls
   - pip install coverage
-  - python bootstrap.py
-  - bin/buildout
+  - pip install "dnspython>=1.13.0" "geventhttpclient>=1.3.1"
+  - pip install mock nose gipc "pyOpenSSL>=0.14"
 
 # command to run tests
 script:
-  PATH=$PATH:./bin coverage run --source=src/etcd --omit="src/etcd/tests/*" bin/test
+  PATH=$PATH:./bin nosetests --with-coverage --cover-package=etcd --logging-format="%(asctime)s %(levelname)s %(message)s" etcd
 
-after_success: coveralls
+after_success:
+  - coveralls
+  - python setup.py sdist --formats=gztar
+  - ./upload_twine.sh
 # Add env var to detect it during build
 env: TRAVIS=True

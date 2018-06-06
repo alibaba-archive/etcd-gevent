@@ -218,6 +218,16 @@ class Client(object):
         # Versions set to None. They will be set upon first usage.
         self._version = self._cluster_version = None
 
+    if hasattr(OrderedDict, 'move_to_end'):
+        def move_client_to_end(self, base_uri):
+            self.http_clients.move_to_end(base_uri)
+    else:
+        def move_client_to_end(self, base_uri):
+            client = self.http_clients[base_uri]
+            del self.http_clients[base_uri]
+            self.http_clients[base_uri] = client
+            return client
+
     @property
     def http(self):
         if self._base_uri not in self.http_clients:
@@ -227,7 +237,9 @@ class Client(object):
             self.http_clients[self._base_uri] = geventhttpclient.HTTPClient.from_url(
                 self._base_uri, network_timeout=self._read_timeout,
                 concurrency=self._per_host_pool_size, **ssl_opts)
-        self.http_clients.move_to_end(self._base_uri)
+        self.move_client_to_end(self._base_uri)
+        while len(self.http_clients) > self._per_host_pool_size:
+            self.http_clients.popitem(False)
         return self.http_clients[self._base_uri]
 
     def _set_version_info(self):
@@ -254,9 +266,10 @@ class Client(object):
 
     def __del__(self):
         """Clean up open connections"""
-        if self.http is not None:
+        if self.http_clients is not None:
             try:
-                self.http.close()
+                for http in self.http_clients.values():
+                    http.close()
             except ReferenceError:
                 # this may hit an already-cleared weakref
                 pass
@@ -917,7 +930,8 @@ class Client(object):
             return self._handle_server_response(response)
         return wrapper
 
-    def request(self, method, path, headers=None, body=None, timeout=None):
+    def request(self, method, path, headers=None, body=b'', timeout=None):
+        headers = headers or {}
         while True:
             resp = self.http.request(
                 method,
@@ -947,7 +961,7 @@ class Client(object):
             )
         elif (method == self._MPUT) or (method == self._MPOST):
             req_path = path
-            encoded = urlencode(params) if params else None
+            encoded = b(urlencode(params)) if params else b''
             headers = self._get_headers()
             headers['content-type'] = 'application/x-www-form-urlencoded'
             headers['content-length'] = len(encoded) if encoded else 0
@@ -968,7 +982,7 @@ class Client(object):
         headers = self._get_headers()
         headers['Content-Type'] = 'application/json'
 
-        return self.http.request(
+        return self.request(
             method,
             path,
             body=json_payload,
