@@ -6,11 +6,11 @@ README = open(os.path.join(here, 'README.rst')).read()
 NEWS = open(os.path.join(here, 'NEWS.txt')).read()
 
 
-version = '0.4.5'
+version = '0.1.0'
 
 install_requires = [
     'dnspython>=1.13.0',
-    'geventhttpclient',
+    'geventhttpclient>=1.3.1',
 ]
 
 test_requires = [
@@ -39,7 +39,7 @@ setup(
     url='http://github.com/wjsi/gevent-etcd',
     license='MIT',
     packages=find_packages('src'),
-    package_dir = {'': 'src'},
+    package_dir={'': 'src'},
     include_package_data=True,
     zip_safe=False,
     install_requires=install_requires,

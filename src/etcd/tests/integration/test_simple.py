@@ -244,36 +244,33 @@ class TestWatch(EtcdIntegrationTest):
     def test_watch(self):
         """ INTEGRATION: Receive a watch event from other process """
 
-        g = gevent.spawn(self.client.set, '/test-key', 'test-value')
-        g.join()
+        self.client.set('/test-key', 'test-value')
 
         queue = multiprocessing.Queue()
 
         def change_value(key, newValue):
             c = etcd.Client(port=6001)
-            g = gevent.spawn(c.set, key, newValue)
-            g.join()
+            c.set(key, newValue)
 
         def watch_value(key, queue):
             c = etcd.Client(port=6001)
-            g = gevent.spawn(c.watch, key)
-            g.join()
-            queue.put(g.value.value)
-
-        changer = gipc.start_process(
-            target=change_value, args=('/test-key', 'new-test-value',))
+            queue.put(c.watch(key).value)
 
         watcher = gipc.start_process(
             target=watch_value, args=('/test-key', queue))
-
         watcher.start()
-        time.sleep(1)
 
+        time.sleep(3)
+
+        changer = gipc.start_process(
+            target=change_value, args=('/test-key', 'new-test-value',))
         changer.start()
 
-        value = queue.get(timeout=2)
-        watcher.join(timeout=5)
-        changer.join(timeout=5)
+        try:
+            value = queue.get(timeout=5)
+        finally:
+            watcher.join(timeout=5)
+            changer.join(timeout=5)
 
         assert value == 'new-test-value'
 
