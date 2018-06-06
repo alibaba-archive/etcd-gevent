@@ -1,5 +1,5 @@
 """
-.. module:: gevent-etcd
+.. module:: etcd-gevent
    :synopsis: A python etcd client.
 
 .. moduleauthor:: Jose Plana <jplana@gmail.com>

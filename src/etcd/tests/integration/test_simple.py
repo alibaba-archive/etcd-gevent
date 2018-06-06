@@ -24,7 +24,7 @@ class EtcdIntegrationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         program = cls._get_exe()
-        cls.directory = tempfile.mkdtemp(prefix='gevent-etcd')
+        cls.directory = tempfile.mkdtemp(prefix='etcd-gevent')
         cls.processHelper = helpers.EtcdProcessHelper(
             cls.directory,
             proc_name=program,
@@ -170,7 +170,7 @@ class TestClusterFunctions(EtcdIntegrationTest):
     @classmethod
     def setUpClass(cls):
         program = cls._get_exe()
-        cls.directory = tempfile.mkdtemp(prefix='gevent-etcd')
+        cls.directory = tempfile.mkdtemp(prefix='etcd-gevent')
 
         cls.processHelper = helpers.EtcdProcessHelper(
             cls.directory,

@@ -1,15 +1,15 @@
-gevent-etcd documentation
+etcd-gevent documentation
 =========================
 
 An async python client for Etcd https://github.com/coreos/etcd , forked from python-etcd.
 
-Official documentation: http://gevent-etcd.readthedocs.org/
+Official documentation: http://etcd-gevent.readthedocs.org/
 
-.. image:: https://travis-ci.org/wjsi/gevent-etcd.png?branch=master
-   :target: https://travis-ci.org/wjsi/gevent-etcd
+.. image:: https://travis-ci.org/wjsi/etcd-gevent.png?branch=master
+   :target: https://travis-ci.org/wjsi/etcd-gevent
 
-.. image:: https://coveralls.io/repos/wjsi/gevent-etcd/badge.svg?branch=master&service=github
-   :target: https://coveralls.io/github/wjsi/gevent-etcd?branch=master
+.. image:: https://coveralls.io/repos/wjsi/etcd-gevent/badge.svg?branch=master&service=github
+   :target: https://coveralls.io/github/wjsi/etcd-gevent?branch=master
 
 Installation
 ------------
@@ -17,7 +17,7 @@ Installation
 Pre-requirements
 ~~~~~~~~~~~~~~~~
 
-This version of gevent-etcd will only work correctly with the etcd server version 2.0.x or later. If you are running an older version of etcd, please use python-etcd 0.3.3 or earlier.
+This version of etcd-gevent will only work correctly with the etcd server version 2.0.x or later. If you are running an older version of etcd, please use python-etcd 0.3.3 or earlier.
 
 This client is known to work with python 2.7 and with python 3.3 or above. It is not tested or expected to work in more outdated versions of python.
 
@@ -33,7 +33,7 @@ From Pypi
 
 .. code:: bash
 
-   $ python3.5 -m pip install gevent-etcd
+   $ python3.5 -m pip install etcd-gevent
 
 Usage
 -----

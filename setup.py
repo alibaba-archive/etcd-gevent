@@ -21,7 +21,7 @@ test_requires = [
 ]
 
 setup(
-    name='gevent-etcd',
+    name='etcd-gevent',
     version=version,
     description="A python client for etcd",
     long_description=README + '\n\n' + NEWS,
@@ -36,7 +36,7 @@ setup(
     keywords='async etcd raft distributed log api client',
     author='Wenjun Si',
     author_email='swj0066@gmail.com',
-    url='http://github.com/wjsi/gevent-etcd',
+    url='http://github.com/wjsi/etcd-gevent',
     license='MIT',
     packages=find_packages('src'),
     package_dir={'': 'src'},
