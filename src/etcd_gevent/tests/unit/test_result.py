@@ -1,4 +1,4 @@
-import etcd
+import etcd_gevent
 import unittest
 import json
 
@@ -23,7 +23,7 @@ class TestEtcdResult(unittest.TestCase):
             'newKey': False,
             'dir': False,
         }}
-        result = etcd.EtcdResult(**response)
+        result = etcd_gevent.EtcdResult(**response)
         self.assertEqual(result.key, response["node"]["key"])
         self.assertEqual(result.value, response["node"]["value"])
 
@@ -67,7 +67,7 @@ class TestEtcdResult(unittest.TestCase):
             'dir': True,
             'nodes': [leaf0, leaf1]
         }}
-        result = etcd.EtcdResult(**testnode)
+        result = etcd_gevent.EtcdResult(**testnode)
         self.assertEqual(result.key, "/test/")
         self.assertTrue(result.dir)
 
@@ -119,7 +119,7 @@ class TestEtcdResult(unittest.TestCase):
             'dir': True,
             'nodes': [mid0, mid1]
         }}
-        result = etcd.EtcdResult(**testnode)
+        result = etcd_gevent.EtcdResult(**testnode)
         self.assertEqual(result.key, "/test/")
         self.assertTrue(result.dir)
 

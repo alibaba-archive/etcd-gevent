@@ -16,7 +16,7 @@ install:
 
 # command to run tests
 script:
-  PATH=$PATH:./bin nosetests --with-coverage --cover-package=etcd --logging-format="%(asctime)s %(levelname)s %(message)s" etcd
+  PATH=$PATH:./bin nosetests --with-coverage --cover-package=etcd_gevent --logging-format="%(asctime)s %(levelname)s %(message)s" etcd_gevent
 
 after_success:
   - coveralls

@@ -6,7 +6,7 @@ import unittest
 import multiprocessing
 import tempfile
 
-import etcd
+import etcd_gevent
 from . import helpers
 from . import test_simple
 from nose.tools import nottest
@@ -55,37 +55,37 @@ class TestEncryptedAccess(test_simple.EtcdIntegrationTest):
     def test_get_set_unauthenticated(self):
         """ INTEGRATION: set/get a new value unauthenticated (http->https) """
 
-        client = etcd.Client(port=6001)
+        client = etcd_gevent.Client(port=6001)
 
         # Since python 3 raises a MaxRetryError here, this gets caught in
         # different code blocks in python 2 and python 3, thus messages are
         # different. Python 3 does the right thing(TM), for the record
         self.assertRaises(
-            etcd.EtcdException, client.set, '/test_set', 'test-key')
+            etcd_gevent.EtcdException, client.set, '/test_set', 'test-key')
 
-        self.assertRaises(etcd.EtcdException, client.get, '/test_set')
+        self.assertRaises(etcd_gevent.EtcdException, client.get, '/test_set')
 
     @nottest
     def test_get_set_unauthenticated_missing_ca(self):
         """ INTEGRATION: try unauthenticated w/out validation (https->https)"""
         # This doesn't work for now and will need further inspection
-        client = etcd.Client(protocol='https', port=6001)
+        client = etcd_gevent.Client(protocol='https', port=6001)
         set_result = client.set('/test_set', 'test-key')
         get_result = client.get('/test_set')
 
 
     def test_get_set_unauthenticated_with_ca(self):
         """ INTEGRATION: try unauthenticated with validation (https->https)"""
-        client = etcd.Client(
+        client = etcd_gevent.Client(
             protocol='https', port=6001, ca_cert=self.ca2_cert_path)
 
-        self.assertRaises(etcd.EtcdConnectionFailed, client.set, '/test-set', 'test-key')
-        self.assertRaises(etcd.EtcdConnectionFailed, client.get, '/test-set')
+        self.assertRaises(etcd_gevent.EtcdConnectionFailed, client.set, '/test-set', 'test-key')
+        self.assertRaises(etcd_gevent.EtcdConnectionFailed, client.get, '/test-set')
 
     def test_get_set_authenticated(self):
         """ INTEGRATION: set/get a new value authenticated """
 
-        client = etcd.Client(
+        client = etcd_gevent.Client(
             port=6001, protocol='https', ca_cert=self.ca_cert_path)
 
         set_result = client.set('/test_set', 'test-key')
@@ -147,12 +147,12 @@ class TestClientAuthenticatedAccess(test_simple.EtcdIntegrationTest):
     def test_get_set_unauthenticated(self):
         """ INTEGRATION: set/get a new value unauthenticated (http->https) """
 
-        client = etcd.Client(port=6001)
+        client = etcd_gevent.Client(port=6001)
 
         # See above for the reason of this change
         self.assertRaises(
-            etcd.EtcdException, client.set, '/test_set', 'test-key')
-        self.assertRaises(etcd.EtcdException, client.get, '/test_set')
+            etcd_gevent.EtcdException, client.set, '/test_set', 'test-key')
+        self.assertRaises(etcd_gevent.EtcdException, client.get, '/test_set')
 
     @nottest
     def test_get_set_authenticated(self):
@@ -161,7 +161,7 @@ class TestClientAuthenticatedAccess(test_simple.EtcdIntegrationTest):
         # Etcd cluster where this fails with the exact same code this
         # doesn't fail
 
-        client = etcd.Client(
+        client = etcd_gevent.Client(
             port=6001,
             protocol='https',
             cert=self.client_all_cert,

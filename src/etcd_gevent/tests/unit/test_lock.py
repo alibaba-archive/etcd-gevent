@@ -1,9 +1,9 @@
-import etcd
+import etcd_gevent
 try:
     import mock
 except ImportError:
     from unittest import mock
-from etcd.tests.unit import TestClientApiBase
+from etcd_gevent.tests.unit import TestClientApiBase
 
 
 class TestClientLock(TestClientApiBase):
@@ -25,7 +25,7 @@ class TestClientLock(TestClientApiBase):
 
     def setUp(self):
         super(TestClientLock, self).setUp()
-        self.locker = etcd.Lock(self.client, 'test_lock')
+        self.locker = etcd_gevent.Lock(self.client, 'test_lock')
 
     def test_initialization(self):
         """
@@ -39,7 +39,7 @@ class TestClientLock(TestClientApiBase):
         """
         Acquiring a precedingly inexistent lock works.
         """
-        l = etcd.Lock(self.client, 'test_lock')
+        l = etcd_gevent.Lock(self.client, 'test_lock')
         l._find_lock = mock.MagicMock(spec=l._find_lock, return_value=False)
         l._acquired = mock.MagicMock(spec=l._acquired, return_value=True)
         # Mock the write
@@ -80,7 +80,7 @@ class TestClientLock(TestClientApiBase):
         self.locker.is_taken = False
         self.assertEquals(self.locker.is_acquired, False)
         self.locker.is_taken = True
-        self._mock_exception(etcd.EtcdKeyNotFound, self.locker.lock_key)
+        self._mock_exception(etcd_gevent.EtcdKeyNotFound, self.locker.lock_key)
         self.assertEquals(self.locker.is_acquired, False)
         self.assertEquals(self.locker.is_taken, False)
 
@@ -120,7 +120,7 @@ class TestClientLock(TestClientApiBase):
         self.locker._sequence = 4
         returns = [
             ('/_locks/test_lock/4', None),
-            ('/_locks/test_lock/1', etcd.EtcdResult(node={"key": '/_locks/test_lock/4', "modifiedIndex": 1}))
+            ('/_locks/test_lock/1', etcd_gevent.EtcdResult(node={"key": '/_locks/test_lock/4', "modifiedIndex": 1}))
         ]
 
         def side_effect():
@@ -166,7 +166,7 @@ class TestClientLock(TestClientApiBase):
         self.locker._sequence = '1'
         self.assertTrue(self.locker._find_lock())
         # Now let's pretend the lock is not there
-        self._mock_exception(etcd.EtcdKeyNotFound, self.locker.lock_key)
+        self._mock_exception(etcd_gevent.EtcdKeyNotFound, self.locker.lock_key)
         self.assertFalse(self.locker._find_lock())
         self.locker._sequence = None
         self.recursive_read()
@@ -175,9 +175,9 @@ class TestClientLock(TestClientApiBase):
 
     def test_get_locker(self):
         self.recursive_read()
-        self.assertEquals((u'/_locks/test_lock/1', etcd.EtcdResult(node={'newKey': False, '_children': [], 'createdIndex': 33, 'modifiedIndex': 33, 'value': u'2qwwwq', 'expiration': None, 'key': u'/_locks/test_lock/1', 'ttl': None, 'action': None, 'dir': False})),
+        self.assertEquals((u'/_locks/test_lock/1', etcd_gevent.EtcdResult(node={'newKey': False, '_children': [], 'createdIndex': 33, 'modifiedIndex': 33, 'value': u'2qwwwq', 'expiration': None, 'key': u'/_locks/test_lock/1', 'ttl': None, 'action': None, 'dir': False})),
                           self.locker._get_locker())
-        with self.assertRaises(etcd.EtcdLockExpired):
+        with self.assertRaises(etcd_gevent.EtcdLockExpired):
             self.locker._sequence = '35'
             self.locker._get_locker()
 

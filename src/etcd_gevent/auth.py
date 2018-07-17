@@ -1,7 +1,7 @@
 import json
 
 import logging
-import etcd
+import etcd_gevent
 
 _log = logging.getLogger(__name__)
 
@@ -40,17 +40,17 @@ class EtcdAuthBase(object):
     def read(self):
         try:
             response = self.client.api_execute(self.uri, self.client._MGET)
-        except etcd.EtcdInsufficientPermissions as e:
+        except etcd_gevent.EtcdInsufficientPermissions as e:
             _log.error("Any action on the authorization requires the root role")
             raise
-        except etcd.EtcdKeyNotFound:
+        except etcd_gevent.EtcdKeyNotFound:
             _log.info("%s '%s' not found", self.entity, self.name)
             raise
         except Exception as e:
             _log.error("Failed to fetch %s in %s%s: %r",
                        self.entity, self.client._base_uri,
                        self.client.version_prefix, e)
-            raise etcd.EtcdException(
+            raise etcd_gevent.EtcdException(
                 "Could not fetch {} '{}'".format(self.entity, self.name))
 
         self._from_net(response.read())
@@ -59,7 +59,7 @@ class EtcdAuthBase(object):
         try:
             r = self.__class__(self.client, self.name)
             r.read()
-        except etcd.EtcdKeyNotFound:
+        except etcd_gevent.EtcdKeyNotFound:
             r = None
         try:
             for payload in self._to_net(r):
@@ -68,29 +68,29 @@ class EtcdAuthBase(object):
                                                         params=payload)
                 # This will fail if the response is an error
                 self._from_net(response.read())
-        except etcd.EtcdInsufficientPermissions as e:
+        except etcd_gevent.EtcdInsufficientPermissions as e:
             _log.error("Any action on the authorization requires the root role")
             raise
         except Exception as e:
             _log.error("Failed to write %s '%s'", self.entity, self.name)
             # TODO: fine-grained exception handling
-            raise etcd.EtcdException(
+            raise etcd_gevent.EtcdException(
                 "Could not write {} '{}': {}".format(self.entity,
                                                      self.name, e))
 
     def delete(self):
         try:
             _ = self.client.api_execute(self.uri, self.client._MDELETE)
-        except etcd.EtcdInsufficientPermissions as e:
+        except etcd_gevent.EtcdInsufficientPermissions as e:
             _log.error("Any action on the authorization requires the root role")
             raise
-        except etcd.EtcdKeyNotFound:
+        except etcd_gevent.EtcdKeyNotFound:
             _log.info("%s '%s' not found", self.entity, self.name)
             raise
         except Exception as e:
             _log.error("Failed to delete %s in %s%s: %r",
                        self.entity, self._base_uri, self.version_prefix, e)
-            raise etcd.EtcdException(
+            raise etcd_gevent.EtcdException(
                 "Could not delete {} '{}'".format(self.entity, self.name))
 
     def _from_net(self, data):

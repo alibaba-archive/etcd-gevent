@@ -7,6 +7,7 @@
 
 """
 import sys
+import time
 import logging
 try:
     # Python 3
@@ -21,7 +22,7 @@ import dns.resolver
 import geventhttpclient
 from functools import wraps
 from collections import OrderedDict
-import etcd
+import etcd_gevent
 
 try:
     from urlparse import urlparse
@@ -149,7 +150,7 @@ class Client(object):
         else:
             if not allow_reconnect:
                 _log.error("List of hosts incompatible with allow_reconnect.")
-                raise etcd.EtcdException("A list of hosts to connect to was given, but reconnection not allowed?")
+                raise etcd_gevent.EtcdException("A list of hosts to connect to was given, but reconnection not allowed?")
             self._machines_cache = [uri(self._protocol, *conn) for conn in host]
             self._base_uri = self._machines_cache.pop(0)
 
@@ -346,7 +347,7 @@ class Client(object):
                 # Call myself
                 return self.machines
             else:
-                raise etcd.EtcdException("Could not get the list of servers, "
+                raise etcd_gevent.EtcdException("Could not get the list of servers, "
                                          "maybe you provided the wrong "
                                          "host(s) to connect to?")
 
@@ -367,7 +368,7 @@ class Client(object):
                 self._members[member['id']] = member
             return self._members
         except:
-            raise etcd.EtcdException("Could not get the members list, maybe the cluster has gone away?")
+            raise etcd_gevent.EtcdException("Could not get the members list, maybe the cluster has gone away?")
 
     @property
     def leader(self):
@@ -385,7 +386,7 @@ class Client(object):
                                  self._MGET).read().decode('utf-8'))
             return self.members[leader['leaderInfo']['leader']]
         except Exception as e:
-            raise etcd.EtcdException("Cannot get leader data: %s" % e)
+            raise etcd_gevent.EtcdException("Cannot get leader data: %s" % e)
 
     @property
     def stats(self):
@@ -418,7 +419,7 @@ class Client(object):
         try:
             return json.loads(data)
         except (TypeError,ValueError):
-            raise etcd.EtcdException("Cannot parse json data in the response")
+            raise etcd_gevent.EtcdException("Cannot parse json data in the response")
 
     @property
     def version(self):
@@ -456,7 +457,7 @@ class Client(object):
         try:
             self.get(key)
             return True
-        except etcd.EtcdKeyNotFound:
+        except etcd_gevent.EtcdKeyNotFound:
             return False
 
     def _sanitize_key(self, key):
@@ -509,7 +510,7 @@ class Client(object):
 
         if dir:
             if value:
-                raise etcd.EtcdException(
+                raise etcd_gevent.EtcdException(
                     'Cannot create a directory with a value')
             params['dir'] = "true"
 
@@ -555,13 +556,13 @@ class Client(object):
         """
         Updates the value for a key atomically. Typical usage would be:
 
-        c = etcd.Client()
+        c = etcd_gevent.Client()
         o = c.read("/somekey")
         o.value += 1
         c.update(o)
 
         Args:
-            obj (etcd.EtcdResult):  The object that needs updating.
+            obj (etcd_gevent.EtcdResult):  The object that needs updating.
 
         """
         _log.debug("Updating %s to %s.", obj.key, obj.value)
@@ -744,7 +745,7 @@ class Client(object):
             client.EtcdResult
 
         Raises:
-           etcd.EtcdException: when something weird goes wrong.
+           etcd_gevent.EtcdException: when something weird goes wrong.
 
         """
         return self.write(key, value, ttl=ttl)
@@ -785,19 +786,26 @@ class Client(object):
         Raises:
             KeyValue:  If the key doesn't exist.
 
-            etcd.EtcdWatchTimedOut: If timeout is reached.
+            etcd_gevent.EtcdWatchTimedOut: If timeout is reached.
 
         >>> print client.watch('/key').value
         'value'
 
         """
         _log.debug("About to wait on key %s, index %s", key, index)
-        if index:
-            return self.read(key, wait=True, waitIndex=index, timeout=timeout,
-                             recursive=recursive)
-        else:
-            return self.read(key, wait=True, timeout=timeout,
-                             recursive=recursive)
+        t1 = t2 = time.time()
+        while True:
+            try:
+                if index:
+                    return self.read(key, wait=True, waitIndex=index, timeout=timeout,
+                                     recursive=recursive)
+                else:
+                    return self.read(key, wait=True, timeout=timeout,
+                                     recursive=recursive)
+            except socket.timeout:
+                t2 = time.time()
+                if 0 < timeout <= t2 - t1:
+                    raise
 
     def eternal_watch(self, key, index=None, recursive=None):
         """
@@ -837,16 +845,16 @@ class Client(object):
         try:
             res = json.loads(raw_response.decode('utf-8'))
         except (TypeError, ValueError, UnicodeError) as e:
-            raise etcd.EtcdException(
+            raise etcd_gevent.EtcdException(
                 'Server response was not valid JSON: %r' % e)
         try:
-            r = etcd.EtcdResult(**res)
+            r = etcd_gevent.EtcdResult(**res)
             if response.status_code == 201:
                 r.newKey = True
             r.parse_headers(response)
             return r
         except Exception as e:
-            raise etcd.EtcdException(
+            raise etcd_gevent.EtcdException(
                 'Unable to decode server response: %r' % e)
 
     def _next_server(self, cause=None):
@@ -857,8 +865,8 @@ class Client(object):
             mach = self._machines_cache.pop()
         except IndexError:
             _log.error("Machines cache is empty, no machines to try.")
-            raise etcd.EtcdConnectionFailed('No more machines in the cluster',
-                                            cause=cause)
+            raise etcd_gevent.EtcdConnectionFailed('No more machines in the cluster',
+                                                   cause=cause)
         else:
             _log.info("Selected new etcd server %s", mach)
             return mach
@@ -891,7 +899,7 @@ class Client(object):
                         params.get("wait") == "true" and
                         isinstance(e, socket.timeout)):
                         _log.debug("Watch timed out.")
-                        raise etcd.EtcdWatchTimedOut(
+                        raise etcd_gevent.EtcdWatchTimedOut(
                             "Watch timed out: %r" % e,
                             cause=e
                         )
@@ -911,11 +919,11 @@ class Client(object):
                         response = False
                     else:
                         _log.debug("Reconnection disabled, giving up.")
-                        raise etcd.EtcdConnectionFailed(
+                        raise etcd_gevent.EtcdConnectionFailed(
                             "Connection to etcd failed due to %r" % e,
                             cause=e
                         )
-                except etcd.EtcdClusterIdChanged as e:
+                except etcd_gevent.EtcdClusterIdChanged as e:
                     _log.warning(e)
                     raise
                 except:
@@ -973,7 +981,7 @@ class Client(object):
                 timeout=timeout,
             )
         else:
-            raise etcd.EtcdException(
+            raise etcd_gevent.EtcdException(
                 'HTTP method {} not supported'.format(method))
 
     @_wrap_request
@@ -1005,7 +1013,7 @@ class Client(object):
             # Defensive: clear the pool so that we connect afresh next
             # time.
             self.http.close()
-            raise etcd.EtcdClusterIdChanged(
+            raise etcd_gevent.EtcdClusterIdChanged(
                 'The UUID of the cluster changed from {} to '
                 '{}.'.format(old_expected_cluster_id, cluster_id))
 
@@ -1025,7 +1033,7 @@ class Client(object):
                 # Bad JSON, make a response locally.
                 r = {"message": "Bad response",
                      "cause": str(resp)}
-            etcd.EtcdError.handle(r)
+            etcd_gevent.EtcdError.handle(r)
 
     @staticmethod
     def _make_headers(keep_alive=None, accept_encoding=None, user_agent=None,
