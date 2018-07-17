@@ -1,5 +1,5 @@
 import logging
-import etcd
+import etcd_gevent
 import uuid
 
 _log = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ class Lock(object):
         # prevent us from getting back the full path name. We prefix our
         # lock name with a uuid and can check for its presence on retry.
         self._uuid = uuid.uuid4().hex
-        self.path = "{}/{}".format(client.lock_prefix, lock_name) 
+        self.path = "{}/{}".format(client.lock_prefix, lock_name)
         self.is_taken = False
         self._sequence = None
         _log.debug("Initiating lock for %s with uuid %s", self.path, self._uuid)
@@ -49,7 +49,7 @@ class Lock(object):
         try:
             self.client.read(self.lock_key)
             return True
-        except etcd.EtcdKeyNotFound:
+        except etcd_gevent.EtcdKeyNotFound:
             _log.warn("Lock was supposedly taken, but we cannot find it")
             self.is_taken = False
             return False
@@ -84,7 +84,7 @@ class Lock(object):
         try:
             _log.debug("Releasing existing lock %s", self.lock_key)
             self.client.delete(self.lock_key)
-        except etcd.EtcdKeyNotFound:
+        except etcd_gevent.EtcdKeyNotFound:
             _log.info("Lock %s not found, nothing to release", self.lock_key)
             pass
         finally:
@@ -122,12 +122,12 @@ class Lock(object):
                     r = self.client.watch(watch_key, timeout=t, index=nearest.modifiedIndex + 1)
                     _log.debug("Detected variation for %s: %s", r.key, r.action)
                     return self._acquired(blocking=True, timeout=timeout)
-                except etcd.EtcdKeyNotFound:
+                except etcd_gevent.EtcdKeyNotFound:
                     _log.debug("Key %s not present anymore, moving on", watch_key)
                     return self._acquired(blocking=True, timeout=timeout)
-                except etcd.EtcdLockExpired as e:
+                except etcd_gevent.EtcdLockExpired as e:
                     raise e
-                except etcd.EtcdException:
+                except etcd_gevent.EtcdException:
                     _log.exception("Unexpected exception")
 
     @property
@@ -145,7 +145,7 @@ class Lock(object):
                 res = self.client.read(self.lock_key)
                 self._uuid = res.value
                 return True
-            except etcd.EtcdKeyNotFound:
+            except etcd_gevent.EtcdKeyNotFound:
                 return False
         elif self._uuid:
             try:
@@ -153,7 +153,7 @@ class Lock(object):
                     if r.value == self._uuid:
                         self._set_sequence(r.key)
                         return True
-            except etcd.EtcdKeyNotFound:
+            except etcd_gevent.EtcdKeyNotFound:
                 pass
         return False
 
@@ -175,4 +175,4 @@ class Lock(object):
         except ValueError:
             # Something very wrong is going on, most probably
             # our lock has expired
-            raise etcd.EtcdLockExpired(u"Lock not found")
+            raise etcd_gevent.EtcdLockExpired(u"Lock not found")

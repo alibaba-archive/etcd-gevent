@@ -9,7 +9,7 @@ import tempfile
 import gevent
 import gipc
 
-import etcd
+import etcd_gevent
 from . import helpers
 
 from nose.tools import nottest
@@ -31,7 +31,7 @@ class EtcdIntegrationTest(unittest.TestCase):
             port_range_start=6001,
             internal_port_range_start=8001)
         cls.processHelper.run(number=cls.cl_size)
-        cls.client = etcd.Client(port=6001)
+        cls.client = etcd_gevent.Client(port=6001)
 
     @classmethod
     def tearDownClass(cls):
@@ -77,7 +77,7 @@ class TestSimple(EtcdIntegrationTest):
         try:
             get_result = self.client.get('/test_set')
             assert False
-        except etcd.EtcdKeyNotFound as e:
+        except etcd_gevent.EtcdKeyNotFound as e:
             pass
 
         self.assertFalse('/test_set' in self.client)
@@ -103,7 +103,7 @@ class TestSimple(EtcdIntegrationTest):
         try:
             get_result = self.client.get('/test_set')
             assert False
-        except etcd.EtcdKeyNotFound as e:
+        except etcd_gevent.EtcdKeyNotFound as e:
             pass
 
     def test_update(self):
@@ -142,7 +142,7 @@ class TestErrors(EtcdIntegrationTest):
         """ INTEGRATION: try to write  value to an existing directory """
 
         self.client.set('/directory/test-key', 'test-value')
-        self.assertRaises(etcd.EtcdNotFile, self.client.set, '/directory', 'test-value')
+        self.assertRaises(etcd_gevent.EtcdNotFile, self.client.set, '/directory', 'test-value')
 
     def test_test_and_set(self):
         """ INTEGRATION: try test_and_set operation """
@@ -161,8 +161,8 @@ class TestErrors(EtcdIntegrationTest):
         `prevExist=True` should fail """
         self.client.write('/mydir', None, dir=True)
 
-        self.assertRaises(etcd.EtcdNotFile, self.client.write, '/mydir', None, dir=True)
-        self.assertRaises(etcd.EtcdAlreadyExist, self.client.write, '/mydir', None, dir=True, prevExist=False)
+        self.assertRaises(etcd_gevent.EtcdNotFile, self.client.write, '/mydir', None, dir=True)
+        self.assertRaises(etcd_gevent.EtcdAlreadyExist, self.client.write, '/mydir', None, dir=True, prevExist=False)
 
 
 class TestClusterFunctions(EtcdIntegrationTest):
@@ -183,7 +183,7 @@ class TestClusterFunctions(EtcdIntegrationTest):
         """ INTEGRATION: get key after the server we're connected fails. """
         self.processHelper.stop()
         self.processHelper.run(number=3)
-        self.client = etcd.Client(port=6001, allow_reconnect=True)
+        self.client = etcd_gevent.Client(port=6001, allow_reconnect=True)
         set_result = self.client.set('/test_set', 'test-key1')
         get_result = self.client.get('/test_set')
 
@@ -198,7 +198,7 @@ class TestClusterFunctions(EtcdIntegrationTest):
         """ INTEGRATION: receive several hosts at connection setup. """
         self.processHelper.stop()
         self.processHelper.run(number=3)
-        self.client = etcd.Client(
+        self.client = etcd_gevent.Client(
             host=(
                 ('127.0.0.1', 6004),
                 ('127.0.0.1', 6001)),
@@ -217,9 +217,9 @@ class TestClusterFunctions(EtcdIntegrationTest):
         """ INTEGRATION: fail on server kill if not allow_reconnect """
         self.processHelper.stop()
         self.processHelper.run(number=3)
-        self.client = etcd.Client(port=6001, allow_reconnect=False)
+        self.client = etcd_gevent.Client(port=6001, allow_reconnect=False)
         self.processHelper.kill_one(0)
-        self.assertRaises(etcd.EtcdConnectionFailed, self.client.get,
+        self.assertRaises(etcd_gevent.EtcdConnectionFailed, self.client.get,
                           '/test_set')
 
     def test_reconnet_fails(self):
@@ -228,7 +228,7 @@ class TestClusterFunctions(EtcdIntegrationTest):
         # Start with three instances (0, 1, 2)
         self.processHelper.run(number=3)
         # Connect to instance 0
-        self.client = etcd.Client(port=6001, allow_reconnect=True)
+        self.client = etcd_gevent.Client(port=6001, allow_reconnect=True)
         set_result = self.client.set('/test_set', 'test-key1')
 
         get_result = self.client.get('/test_set')
@@ -236,7 +236,7 @@ class TestClusterFunctions(EtcdIntegrationTest):
         self.processHelper.kill_one(2)
         self.processHelper.kill_one(1)
         self.processHelper.kill_one(0)
-        self.assertRaises(etcd.EtcdException, self.client.get, '/test_set')
+        self.assertRaises(etcd_gevent.EtcdException, self.client.get, '/test_set')
 
 
 class TestWatch(EtcdIntegrationTest):
@@ -249,25 +249,25 @@ class TestWatch(EtcdIntegrationTest):
         queue = multiprocessing.Queue()
 
         def change_value(key, newValue):
-            c = etcd.Client(port=6001)
+            c = etcd_gevent.Client(port=6001)
             c.set(key, newValue)
 
         def watch_value(key, queue):
-            c = etcd.Client(port=6001)
+            c = etcd_gevent.Client(port=6001)
             queue.put(c.watch(key).value)
 
         watcher = gipc.start_process(
             target=watch_value, args=('/test-key', queue))
         watcher.start()
 
-        time.sleep(3)
+        time.sleep(1)
 
         changer = gipc.start_process(
             target=change_value, args=('/test-key', 'new-test-value',))
         changer.start()
 
         try:
-            value = queue.get(timeout=5)
+            value = queue.get(timeout=2)
         finally:
             watcher.join(timeout=5)
             changer.join(timeout=5)
@@ -286,12 +286,12 @@ class TestWatch(EtcdIntegrationTest):
         queue = multiprocessing.Queue()
 
         def change_value(key, newValue):
-            c = etcd.Client(port=6001)
+            c = etcd_gevent.Client(port=6001)
             c.set(key, newValue)
             c.get(key)
 
         def watch_value(key, index, queue):
-            c = etcd.Client(port=6001)
+            c = etcd_gevent.Client(port=6001)
             for i in range(0, 3):
                 queue.put(c.watch(key, index=index + i).value)
 
@@ -323,13 +323,13 @@ class TestWatch(EtcdIntegrationTest):
 
         def change_value(key):
             time.sleep(0.5)
-            c = etcd.Client(port=6001)
+            c = etcd_gevent.Client(port=6001)
             for i in range(0, 3):
                 c.set(key, 'test-value%d' % i)
                 c.get(key)
 
         def watch_value(key, queue):
-            c = etcd.Client(port=6001)
+            c = etcd_gevent.Client(port=6001)
             for i in range(0, 3):
                 event = next(c.eternal_watch(key)).value
                 queue.put(event)
@@ -364,11 +364,11 @@ class TestWatch(EtcdIntegrationTest):
         queue = multiprocessing.Queue()
 
         def change_value(key, newValue):
-            c = etcd.Client(port=6001)
+            c = etcd_gevent.Client(port=6001)
             c.set(key, newValue)
 
         def watch_value(key, index, queue):
-            c = etcd.Client(port=6001)
+            c = etcd_gevent.Client(port=6001)
             iterevents = c.eternal_watch(key, index=index)
             for i in range(0, 3):
                 queue.put(next(iterevents).value)

@@ -33,11 +33,11 @@ Create a client object
 
    import etcd
 
-   client = etcd.Client() # this will create a client against etcd server running on localhost on port 4001
-   client = etcd.Client(port=4002)
-   client = etcd.Client(host='127.0.0.1', port=4003)
-   client = etcd.Client(host='127.0.0.1', port=4003, allow_redirect=False) # wont let you run sensitive commands on non-leader machines, default is true
-   client = etcd.Client(
+   client = etcd_gevent.Client() # this will create a client against etcd server running on localhost on port 4001
+   client = etcd_gevent.Client(port=4002)
+   client = etcd_gevent.Client(host='127.0.0.1', port=4003)
+   client = etcd_gevent.Client(host='127.0.0.1', port=4003, allow_redirect=False) # wont let you run sensitive commands on non-leader machines, default is true
+   client = etcd_gevent.Client(
                 host='127.0.0.1',
                 port=4003,
                 allow_reconnect=True,
@@ -88,10 +88,10 @@ Get a key
     client.read('/nodes/n2', wait=True) #Waits for a change in value in the key before returning.
     client.read('/nodes/n2', wait=True, waitIndex=10)
 
-    # raises etcd.EtcdKeyNotFound when key not found
+    # raises etcd_gevent.EtcdKeyNotFound when key not found
     try:
         client.read('/invalid/path')
-    except etcd.EtcdKeyNotFound:
+    except etcd_gevent.EtcdKeyNotFound:
         # do something
         print "error"
 
@@ -112,8 +112,8 @@ Locking module
 
     # Initialize the lock object:
     # NOTE: this does not acquire a lock yet
-    client = etcd.Client()
-    lock = etcd.Lock(client, 'my_lock_name')
+    client = etcd_gevent.Client()
+    lock = etcd_gevent.Lock(client, 'my_lock_name')
 
     # Use the lock object:
     lock.acquire(blocking=True, # will block until the lock is acquired
@@ -124,8 +124,8 @@ Locking module
     lock.is_acquired  # False
 
     # The lock object may also be used as a context manager:
-    client = etcd.Client()
-    with etcd.Lock(client, 'customer1') as my_lock:
+    client = etcd_gevent.Client()
+    with etcd_gevent.Lock(client, 'customer1') as my_lock:
         do_stuff()
         my_lock.is_acquired  # True
         my_lock.acquire(lock_ttl=60)

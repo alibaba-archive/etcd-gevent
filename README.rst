@@ -47,15 +47,15 @@ Create a client object
 
     import etcd
 
-    client = etcd.Client() # this will create a client against etcd server running on localhost on port 4001
-    client = etcd.Client(port=4002)
-    client = etcd.Client(host='127.0.0.1', port=4003)
-    client = etcd.Client(host=(('127.0.0.1', 4001), ('127.0.0.1', 4002), ('127.0.0.1', 4003)))
-    client = etcd.Client(host='127.0.0.1', port=4003, allow_redirect=False) # wont let you run sensitive commands on non-leader machines, default is true
+    client = etcd_gevent.Client() # this will create a client against etcd server running on localhost on port 4001
+    client = etcd_gevent.Client(port=4002)
+    client = etcd_gevent.Client(host='127.0.0.1', port=4003)
+    client = etcd_gevent.Client(host=(('127.0.0.1', 4001), ('127.0.0.1', 4002), ('127.0.0.1', 4003)))
+    client = etcd_gevent.Client(host='127.0.0.1', port=4003, allow_redirect=False) # wont let you run sensitive commands on non-leader machines, default is true
     # If you have defined a SRV record for _etcd._tcp.example.com pointing to the clients
-    client = etcd.Client(srv_domain='example.com', protocol="https")
+    client = etcd_gevent.Client(srv_domain='example.com', protocol="https")
     # create a client against https://api.example.com:443/etcd
-    client = etcd.Client(host='api.example.com', protocol='https', port=443, version_prefix='/etcd')
+    client = etcd_gevent.Client(host='api.example.com', protocol='https', port=443, version_prefix='/etcd')
 
 Write a key
 ~~~~~~~~~~~
@@ -76,10 +76,10 @@ Read a key
     client.read('/nodes', recursive = True) #get all the values of a directory, recursively.
     client.get('/nodes/n2').value
 
-    # raises etcd.EtcdKeyNotFound when key not found
+    # raises etcd_gevent.EtcdKeyNotFound when key not found
     try:
         client.read('/invalid/path')
-    except etcd.EtcdKeyNotFound:
+    except etcd_gevent.EtcdKeyNotFound:
         # do something
         print "error"
 
@@ -143,10 +143,10 @@ Locking module
 
     # Initialize the lock object:
     # NOTE: this does not acquire a lock yet
-    client = etcd.Client()
+    client = etcd_gevent.Client()
     # Or you can custom lock prefix, default is '/_locks/' if you are using HEAD
-    client = etcd.Client(lock_prefix='/my_etcd_root/_locks')
-    lock = etcd.Lock(client, 'my_lock_name')
+    client = etcd_gevent.Client(lock_prefix='/my_etcd_root/_locks')
+    lock = etcd_gevent.Lock(client, 'my_lock_name')
 
     # Use the lock object:
     lock.acquire(blocking=True, # will block until the lock is acquired
@@ -157,8 +157,8 @@ Locking module
     lock.is_acquired  # False
 
     # The lock object may also be used as a context manager:
-    client = etcd.Client()
-    with etcd.Lock(client, 'customer1') as my_lock:
+    client = etcd_gevent.Client()
+    with etcd_gevent.Lock(client, 'customer1') as my_lock:
         do_stuff()
         my_lock.is_acquired  # True
         my_lock.acquire(lock_ttl=60)

@@ -1,7 +1,7 @@
 import socket
 
-import etcd
-from etcd.tests.unit import TestClientApiBase
+import etcd_gevent
+from etcd_gevent.tests.unit import TestClientApiBase
 
 try:
     import mock
@@ -87,13 +87,13 @@ class TestClientApiInterface(TestClientApiBase):
         mocker.return_value = self._prepare_response(200, d)
         self.assertEquals(data, self.client.machines)
 
-    @mock.patch('etcd.Client.machines', new_callable=mock.PropertyMock)
+    @mock.patch('etcd_gevent.Client.machines', new_callable=mock.PropertyMock)
     def test_use_proxies(self, mocker):
         """Do not overwrite the machines cache when using proxies"""
         mocker.return_value = ['https://10.0.0.2:4001',
                                'https://10.0.0.3:4001',
                                'https://10.0.0.4:4001']
-        c = etcd.Client(
+        c = etcd_gevent.Client(
             host=(('localhost', 4001), ('localproxy', 4001)),
             protocol='https',
             allow_reconnect=True,
@@ -104,7 +104,7 @@ class TestClientApiInterface(TestClientApiBase):
         self.assertEquals(c._base_uri, 'https://localhost:4001')
         self.assertNotIn(c.base_uri, c._machines_cache)
 
-        c = etcd.Client(
+        c = etcd_gevent.Client(
             host=(('localhost', 4001), ('10.0.0.2', 4001)),
             protocol='https',
             allow_reconnect=True,
@@ -156,7 +156,7 @@ class TestClientApiInterface(TestClientApiBase):
         self.assertEquals(self.client.leader_stats['leader'], "924e2e83e93f2560")
 
 
-    @mock.patch('etcd.Client.members', new_callable=mock.PropertyMock)
+    @mock.patch('etcd_gevent.Client.members', new_callable=mock.PropertyMock)
     def test_leader(self, mocker):
         """ Can request the leader """
         members = {"ce2a822cea30bfca": {"id": "ce2a822cea30bfca", "name": "default"}}
@@ -178,7 +178,7 @@ class TestClientApiInterface(TestClientApiBase):
 
         self._mock_api(200, d)
         res = self.client.write('/testkey', 'test')
-        self.assertEquals(res, etcd.EtcdResult(**d))
+        self.assertEquals(res, etcd_gevent.EtcdResult(**d))
 
     def test_update(self):
         """Can update a result."""
@@ -214,7 +214,7 @@ class TestClientApiInterface(TestClientApiBase):
         self._mock_api(201, d)
         res = self.client.write('/testkey', 'test')
         d['node']['newKey'] = True
-        self.assertEquals(res, etcd.EtcdResult(**d))
+        self.assertEquals(res, etcd_gevent.EtcdResult(**d))
 
     def test_refresh(self):
         """ Can refresh a new value """
@@ -231,12 +231,12 @@ class TestClientApiInterface(TestClientApiBase):
 
         self._mock_api(200, d)
         res = self.client.refresh('/testkey', ttl=600)
-        self.assertEquals(res, etcd.EtcdResult(**d))
+        self.assertEquals(res, etcd_gevent.EtcdResult(**d))
 
     def test_not_found_response(self):
         """ Can handle server not found response """
         self._mock_api(404, 'Not found')
-        self.assertRaises(etcd.EtcdException, self.client.read, '/somebadkey')
+        self.assertRaises(etcd_gevent.EtcdException, self.client.read, '/somebadkey')
 
     def test_compare_and_swap(self):
         """ Can set compare-and-swap a value """
@@ -252,7 +252,7 @@ class TestClientApiInterface(TestClientApiBase):
 
         self._mock_api(200, d)
         res = self.client.write('/testkey', 'test', prevValue='test_old')
-        self.assertEquals(res, etcd.EtcdResult(**d))
+        self.assertEquals(res, etcd_gevent.EtcdResult(**d))
 
     def test_compare_and_swap_failure(self):
         """ Exception will be raised if prevValue != value in test_set """
@@ -282,7 +282,7 @@ class TestClientApiInterface(TestClientApiBase):
 
     def test_set_dir_with_value(self):
         """ Creating a directory with a value raises an error. """
-        self.assertRaises(etcd.EtcdException, self.client.write,
+        self.assertRaises(etcd_gevent.EtcdException, self.client.write,
                           '/bar', 'testvalye', dir=True)
 
     def test_delete(self):
@@ -297,7 +297,7 @@ class TestClientApiInterface(TestClientApiBase):
         }
         self._mock_api(200, d)
         res = self.client.delete('/testKey')
-        self.assertEquals(res, etcd.EtcdResult(**d))
+        self.assertEquals(res, etcd_gevent.EtcdResult(**d))
 
     def test_pop(self):
         """ Can pop a value """
@@ -316,7 +316,7 @@ class TestClientApiInterface(TestClientApiBase):
         self._mock_api(200, d)
         res = self.client.pop(d['node']['key'])
         self.assertEquals({attr: getattr(res, attr) for attr in dir(res)
-                           if attr in etcd.EtcdResult._node_props}, d['prevNode'])
+                           if attr in etcd_gevent.EtcdResult._node_props}, d['prevNode'])
         self.assertEqual(res.value, d['prevNode']['value'])
 
     def test_read(self):
@@ -331,7 +331,7 @@ class TestClientApiInterface(TestClientApiBase):
         }
         self._mock_api(200, d)
         res = self.client.read('/testKey')
-        self.assertEquals(res, etcd.EtcdResult(**d))
+        self.assertEquals(res, etcd_gevent.EtcdResult(**d))
 
     def test_get_dir(self):
         """Can get values in dirs"""
@@ -357,11 +357,11 @@ class TestClientApiInterface(TestClientApiBase):
         }
         self._mock_api(200, d)
         res = self.client.read('/testDir', recursive=True)
-        self.assertEquals(res, etcd.EtcdResult(**d))
+        self.assertEquals(res, etcd_gevent.EtcdResult(**d))
 
     def test_not_in(self):
         """ Can check if key is not in client """
-        self._mock_exception(etcd.EtcdKeyNotFound, 'Key not Found : /testKey')
+        self._mock_exception(etcd_gevent.EtcdKeyNotFound, 'Key not Found : /testKey')
         self.assertTrue('/testey' not in self.client)
 
     def test_in(self):
@@ -389,7 +389,7 @@ class TestClientApiInterface(TestClientApiBase):
         }
         self._mock_api(200, d)
         res = self.client.read('/testkey', wait=True)
-        self.assertEquals(res, etcd.EtcdResult(**d))
+        self.assertEquals(res, etcd_gevent.EtcdResult(**d))
 
     def test_watch_index(self):
         """ Can watch a key starting from the given Index """
@@ -403,13 +403,13 @@ class TestClientApiInterface(TestClientApiBase):
         }
         self._mock_api(200, d)
         res = self.client.read('/testkey', wait=True, waitIndex=True)
-        self.assertEquals(res, etcd.EtcdResult(**d))
+        self.assertEquals(res, etcd_gevent.EtcdResult(**d))
 
 
 class TestClientRequest(TestClientApiInterface):
 
     def setUp(self):
-        self.client = etcd.Client(expected_cluster_id="abcdef1234")
+        self.client = etcd_gevent.Client(expected_cluster_id="abcdef1234")
 
     def _mock_api(self, status, d, cluster_id=None):
         resp = self._prepare_response(status, d)
@@ -451,7 +451,7 @@ class TestClientRequest(TestClientApiInterface):
             side_effect=socket.timeout()
         )
         self.assertRaises(
-            etcd.EtcdWatchTimedOut,
+            etcd_gevent.EtcdWatchTimedOut,
             self.client.watch,
             '/testKey',
         )
@@ -463,7 +463,7 @@ class TestClientRequest(TestClientApiInterface):
 
     def test_api_method_not_supported(self):
         """ Exception will be raised if an unsupported HTTP method is used """
-        self.assertRaises(etcd.EtcdException,
+        self.assertRaises(etcd_gevent.EtcdException,
                           self.client.api_execute, '/testpath/bar', 'TRACE')
 
     def test_read_cluster_id_changed(self):
@@ -479,7 +479,7 @@ class TestClientRequest(TestClientApiInterface):
             }
         }
         self._mock_api(200, d, cluster_id="notabcd1234")
-        self.assertRaises(etcd.EtcdClusterIdChanged,
+        self.assertRaises(etcd_gevent.EtcdClusterIdChanged,
                           self.client.read, '/testkey')
         self.client.read("/testkey")
 
@@ -488,10 +488,10 @@ class TestClientRequest(TestClientApiInterface):
             self.client.http.request,
             side_effect=socket.error()
         )
-        self.assertRaises(etcd.EtcdConnectionFailed,
+        self.assertRaises(etcd_gevent.EtcdConnectionFailed,
                           self.client.read, '/something')
         # Direct GET request
-        self.assertRaises(etcd.EtcdConnectionFailed,
+        self.assertRaises(etcd_gevent.EtcdConnectionFailed,
                           self.client.api_execute, '/a', 'GET')
 
     def test_not_in(self):
@@ -512,7 +512,7 @@ class TestClientRequest(TestClientApiInterface):
                 u'value': u'test'
             }
         }
-        res = etcd.EtcdResult(**d)
+        res = etcd_gevent.EtcdResult(**d)
 
         error = {
             "errorCode": 101,

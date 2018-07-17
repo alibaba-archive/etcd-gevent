@@ -1,6 +1,6 @@
-from etcd.tests.integration.test_simple import EtcdIntegrationTest
-from etcd import auth
-import etcd
+from etcd_gevent.tests.integration.test_simple import EtcdIntegrationTest
+from etcd_gevent import auth
+import etcd_gevent
 
 
 class TestEtcdAuthBase(EtcdIntegrationTest):
@@ -11,9 +11,9 @@ class TestEtcdAuthBase(EtcdIntegrationTest):
         u = auth.EtcdUser(self.client, 'root')
         u.password = 'testpass'
         u.write()
-        self.client = etcd.Client(port=6001, username='root',
-                                password='testpass')
-        self.unauth_client = etcd.Client(port=6001)
+        self.client = etcd_gevent.Client(port=6001, username='root',
+                                         password='testpass')
+        self.unauth_client = etcd_gevent.Client(port=6001)
         a = auth.Auth(self.client)
         a.active = True
 
@@ -54,16 +54,16 @@ class EtcdUserTest(TestEtcdAuthBase):
 
         # An inexistent user raises the appropriate exception
         u = auth.EtcdUser(self.client, 'user.does.not.exist')
-        self.assertRaises(etcd.EtcdKeyNotFound, u.read)
+        self.assertRaises(etcd_gevent.EtcdKeyNotFound, u.read)
 
         # Reading with an unauthenticated client raises an exception
         u = auth.EtcdUser(self.unauth_client, 'root')
-        self.assertRaises(etcd.EtcdInsufficientPermissions, u.read)
+        self.assertRaises(etcd_gevent.EtcdInsufficientPermissions, u.read)
 
         # Generic errors are caught
-        c = etcd.Client(port=9999)
+        c = etcd_gevent.Client(port=9999)
         u = auth.EtcdUser(c, 'root')
-        self.assertRaises(etcd.EtcdException, u.read)
+        self.assertRaises(etcd_gevent.EtcdException, u.read)
 
     def test_write_and_delete(self):
         # Create an user
@@ -81,12 +81,12 @@ class EtcdUserTest(TestEtcdAuthBase):
         u.read()
         # Verify we can log in as this user and access the auth (it has the
         # root role)
-        cl = etcd.Client(port=6001, username='test_user',
-                         password='123456')
+        cl = etcd_gevent.Client(port=6001, username='test_user',
+                                password='123456')
         ul = auth.EtcdUser(cl, 'root')
         try:
             ul.read()
-        except etcd.EtcdInsufficientPermissions:
+        except etcd_gevent.EtcdInsufficientPermissions:
             self.fail("Reading auth with the new user is not possible")
 
         self.assertEquals(u.name, "test_user")
@@ -106,17 +106,17 @@ class EtcdUserTest(TestEtcdAuthBase):
 
         # Unauthorized access is properly handled
         ua = auth.EtcdUser(self.unauth_client, 'test_user')
-        self.assertRaises(etcd.EtcdInsufficientPermissions, ua.write)
+        self.assertRaises(etcd_gevent.EtcdInsufficientPermissions, ua.write)
 
         # now let's test deletion
         du = auth.EtcdUser(self.client, 'user.does.not.exist')
-        self.assertRaises(etcd.EtcdKeyNotFound, du.delete)
+        self.assertRaises(etcd_gevent.EtcdKeyNotFound, du.delete)
 
         # Delete test_user
         u.delete()
-        self.assertRaises(etcd.EtcdKeyNotFound, u.read)
+        self.assertRaises(etcd_gevent.EtcdKeyNotFound, u.read)
         # Permissions are properly handled
-        self.assertRaises(etcd.EtcdInsufficientPermissions, ua.delete)
+        self.assertRaises(etcd_gevent.EtcdInsufficientPermissions, ua.delete)
 
 
 class EtcdRoleTest(TestEtcdAuthBase):
@@ -162,10 +162,10 @@ class EtcdRoleTest(TestEtcdAuthBase):
         self.assertEquals(r1.acls['/pub/*'], 'RW')
         # All other exceptions are tested by the user tests
         r1.name = None
-        self.assertRaises(etcd.EtcdException, r1.write)
+        self.assertRaises(etcd_gevent.EtcdException, r1.write)
         # ditto for delete
         try:
             r.delete()
         except:
             self.fail("A normal delete should not fail")
-        self.assertRaises(etcd.EtcdKeyNotFound, r.read)
+        self.assertRaises(etcd_gevent.EtcdKeyNotFound, r.read)
