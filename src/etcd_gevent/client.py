@@ -793,7 +793,7 @@ class Client(object):
 
         """
         _log.debug("About to wait on key %s, index %s", key, index)
-        t1 = t2 = time.time()
+        t1 = time.time()
         while True:
             try:
                 if index:
@@ -805,7 +805,7 @@ class Client(object):
             except socket.timeout:
                 t2 = time.time()
                 if 0 < timeout <= t2 - t1:
-                    raise
+                    raise etcd_gevent.EtcdWatchTimedOut
 
     def eternal_watch(self, key, index=None, recursive=None):
         """
